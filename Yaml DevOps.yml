@@ -1,0 +1,51 @@
+
+name: DCS Parole Checkin Deployment
+
+trigger:
+  branches:
+    include: ['main']
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  webAppName: 'parole-checkin-720'
+  resourceGroup: 'rg-dcs-720-sec'
+  subscriptionId: 'e2f875f7-b924-45eb-b0ed-07c944da8338'  
+
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '18.x'
+    displayName: 'Install Node.js'
+
+  - script: |
+      npm install
+      npm run build
+    displayName: 'Build Application'
+
+  - task: Npm@1
+    inputs:
+      command: 'custom'
+      customCommand: 'audit --audit-level=high'
+    displayName: 'Security Scan (npm audit)'
+
+  - task: PublishTestResults@2
+    inputs:
+      testResultsFormat: 'JUnit'
+      testResultsFiles: '**/test-results.xml'
+    condition: always()
+    displayName: 'Publish Test Results'
+
+  - task: AzureWebApp@1
+    inputs:
+      azureSubscription: 'DCS-Azure-Service-Connection'
+      appType: 'webAppLinux'
+      appName: $(webAppName)
+      resourceGroupName: $(resourceGroup)
+      package: '$(System.DefaultWorkingDirectory)/**/*.zip'
+      runtimeStack: 'NODE|18-lts'
+      startUpCommand: 'npm start'
+    displayName: 'Deploy to Azure Web App'
+    
+    #Azure Web Apps for Linux natively supports Node.js, ensuring seamless deployment.
